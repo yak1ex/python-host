@@ -98,6 +98,10 @@ class Driver(object):
         'press': 0x16,
         'on': 0x16,
         'off': 0x16,
+        'spress': 0x16,
+        'lpress': 0x16,
+        'info': 0x16,
+        'battery': 0x16,
         'open': 0x0D,
         'close': 0x0D,
         'pause': 0x0D,
@@ -106,10 +110,15 @@ class Driver(object):
         'press': b'\x57\x01\x00',
         'on': b'\x57\x01\x01',
         'off': b'\x57\x01\x02',
+        'spress': b'\x57\x01\x03\x01\x04',
+        'lpress': b'\x57\x01\x03\x0a\x04',
+        'info': b'\x57\x02\x00',
+        'battery': b'\x57\x02\x00',
         'open': b'\x57\x0F\x45\x01\x05\xFF\x00',
         'close': b'\x57\x0F\x45\x01\x05\xFF\x64',
         'pause': b'\x57\x0F\x45\x01\x00\xFF',
     }
+    read_uuid = 'cba20003-224d-11e6-9fb8-0002a5d5c51b'
 
     def __init__(self, device, bt_interface=None, timeout_secs=None):
         self.device = device
@@ -119,7 +128,12 @@ class Driver(object):
     def run_command(self, command):
         with connect(self.device, self.bt_interface, self.timeout_secs) as req:
             print('Connected!')
-            return req.write_by_handle(self.handles[command], self.commands[command])
+            ret = req.write_by_handle(self.handles[command], self.commands[command])
+            if command == 'info':
+                ret = req.read_by_uuid(self.read_uuid)
+            elif command == 'battery':
+                ret = (req.read_by_uuid(self.read_uuid))[0][1]
+            return ret
 
 
 def main():
@@ -132,9 +146,9 @@ def main():
                         help="Specify the address of a device to control")
 
     parser.add_argument('-c', '--command',  dest='command', required=False, default='press',
-                        choices=['press', 'on', 'off', 'open', 'close', 'pause'], 
+                        choices=['press', 'on', 'off', 'spress', 'lpress', 'info', 'battery', 'open', 'close', 'pause'],
                         help="Command to be sent to device. \
-                            Noted that press/on/off for Bot and open/close for Curtain. \
+                            Noted that press/on/off/spress/lpress for Bot and open/close for Curtain. \
                             Required if the controlled device is Curtain (default: %(default)s)")
 
     parser.add_argument('-i', '--interface',  dest='interface', required=False, default='hci0',
@@ -170,7 +184,7 @@ def main():
         raise RuntimeError('Please specify at least one mode between --scan and --device')
 
     driver = Driver(device=bt_addr, bt_interface=opts.interface, timeout_secs=opts.connect_timeout)
-    driver.run_command(opts.command)
+    print(driver.run_command(opts.command))
     print('Command execution successful')
 
 
